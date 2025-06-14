@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TO DO LIST</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Gowun Dodum', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background-color: #ddd;
+      color: #333;
+      padding: 20px;
+      text-align: center;
+      width: 100vw;
+      box-sizing: border-box;
+    }
+    #container {
+      max-width: 1200px;
+      margin: auto;
+      display: flex;
+      gap: 20px;
+      padding: 20px;
+    }
+    #calendarContainer {
+      flex: 0 0 40%;
+    }
+    #todoSection {
+      flex: 1;
+      border-left: 2px solid #ccc;
+      padding-left: 20px;
+      font-size: 1.2em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    td {
+      height: 100px;
+      border: 1px solid #ccc;
+      vertical-align: top;
+      padding: 5px;
+    }
+    td:hover {
+      background-color: #f0f0f0;
+      cursor: pointer;
+    }
+    .today {
+      background-color: #add8e6 !important;
+    }
+    .selected {
+      background-color: #ffb6c1 !important;
+    }
+    .date-number {
+      font-weight: bold;
+    }
+    .todo-item {
+      font-size: 1em;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    #taskInput {
+      width: 100%;
+      padding: 12px;
+      font-size: 1.2em;
+      box-sizing: border-box;
+      font-family: 'Gowun Dodum', sans-serif;
+    }
+    #taskInput::placeholder {
+      font-family: 'Gowun Dodum', sans-serif;
+    }
+    .priority-btn {
+      padding: 10px 16px;
+      border: none;
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 1.1em;
+      margin: 2px;
+    }
+    .high {
+      background-color: #e74c3c;
+    }
+    .medium {
+      background-color: #e67e22;
+    }
+    .low {
+      background-color: #2ecc71;
+    }
+    .priority-btn.active {
+      outline: 3px solid black;
+    }
+    button.nav {
+      padding: 7px 12px;
+      margin: 5px;
+      font-size: 1em;
+    }
+    #todoSection button:not(.priority-btn) {
+      padding: 8px 12px;
+      font-size: 1em;
+      margin-right: 3px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TO DO LIST</h1>
+  </header>
+  <div id="container">
+    <div id="calendarContainer">
+      <div style="text-align:center; margin-bottom: 10px;">
+        <button class="nav" onclick="changeMonth(-1)">⬅ 이전 달</button>
+        <span id="monthTitle"></span>
+        <button class="nav" onclick="changeMonth(1)">다음 달 ➡</button>
+      </div>
+      <div id="calendar"></div>
+    </div>
+
+    <div id="todoSection">
+      <h2 id="todoTitle"></h2>
+      <input type="text" id="taskInput" placeholder="할일 입력" />
+      <div style="margin:10px 0;">
+        <span>우선순위: </span>
+        <button class="priority-btn high" onclick="setPriority('high')">높음</button>
+        <button class="priority-btn medium" onclick="setPriority('medium')">중간</button>
+        <button class="priority-btn low" onclick="setPriority('low')">낮음</button>
+      </div>
+      <button onclick="addTodo()">추가</button>
+      <ul id="todoList"></ul>
+    </div>
+  </div>
+
+  <script>
+    let todos = JSON.parse(localStorage.getItem("todos") || "[]");
+    let selectedPriority = null;
+    let selectedDate = null;
+    let selectedCellId = null;
+
+    const today = new Date();
+    let currentYear = today.getFullYear();
+    let currentMonth = today.getMonth();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    function save() {
+      localStorage.setItem("todos", JSON.stringify(todos));
+    }
+
+    function renderCalendar(year, month) {
+      document.getElementById("monthTitle").innerText = `${year}년 ${month + 1}월`;
+
+      const calendarDiv = document.getElementById("calendar");
+      calendarDiv.innerHTML = "";
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      let table = "<table>";
+      table += `<tr><th>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr><tr>`;
+
+      let dayCounter = 0;
+      for (let i = 0; i < firstDay; i++) {
+        table += "<td></td>";
+        dayCounter++;
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const isToday = dateStr === todayStr;
+        const cellId = `cell-${dateStr}`;
+        const dayTodos = todos.filter(t => t.date === dateStr);
+
+        let cellClass = isToday ? 'today' : '';
+        if (selectedDate === dateStr) cellClass = 'selected';
+
+        table += `<td id="${cellId}" class="${cellClass}" onclick="showTodoSection('${dateStr}', '${cellId}')"><div class="date-number">${day}</div>`;
+        dayTodos.slice(0, 3).forEach(todo => {
+          const color = todo.priority === 'high' ? '#e74c3c' : todo.priority === 'medium' ? '#e67e22' : '#2ecc71';
+          table += `<div class="todo-item" style="color:${color}">${todo.task}</div>`;
+        });
+        if (dayTodos.length > 3) table += `<div class="todo-item">+${dayTodos.length - 3} 더보기</div>`;
+        table += `</td>`;
+        dayCounter++;
+        if (dayCounter % 7 === 0 && day !== daysInMonth) table += "</tr><tr>";
+      }
+
+      while (dayCounter % 7 !== 0) {
+        table += "<td></td>";
+        dayCounter++;
+      }
+
+      table += "</tr></table>";
+      calendarDiv.innerHTML = table;
+    }
+
+    function changeMonth(offset) {
+      currentMonth += offset;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      } else if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      selectedDate = todayStr;
+      renderCalendar(currentYear, currentMonth);
+      showTodoSection(todayStr, `cell-${todayStr}`);
+    }
+
+    function showTodoSection(dateStr, cellId) {
+      if (selectedCellId) document.getElementById(selectedCellId)?.classList.remove('selected');
+      document.getElementById(cellId)?.classList.add('selected');
+      selectedDate = dateStr;
+      selectedCellId = cellId;
+      document.getElementById("todoTitle").innerText = `📌 ${dateStr} 할일 관리`;
+      renderTodoList();
+    }
+
+    function setPriority(priority) {
+      selectedPriority = priority;
+      document.querySelectorAll('.priority-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`.priority-btn.${priority}`)?.classList.add('active');
+    }
+
+    function addTodo() {
+      const task = document.getElementById("taskInput").value.trim();
+      if (!task || !selectedPriority || !selectedDate) {
+        alert("할일과 우선순위를 모두 입력하세요.");
+        return;
+      }
+      todos.push({ task, priority: selectedPriority, date: selectedDate, completed: null });
+      save();
+      selectedPriority = null;
+      document.getElementById("taskInput").value = "";
+      document.querySelectorAll('.priority-btn').forEach(btn => btn.classList.remove('active'));
+      renderCalendar(currentYear, currentMonth);
+      renderTodoList();
+    }
+
+    function completeTodo(index) {
+      todos[index].completed = new Date().toLocaleDateString() + " 완료";
+      save();
+      renderCalendar(currentYear, currentMonth);
+      renderTodoList();
+    }
+
+    function nextDayTodo(index) {
+      const date = new Date(todos[index].date);
+      date.setDate(date.getDate() + 1);
+      const newDateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      todos[index].date = newDateStr;
+      save();
+      renderCalendar(currentYear, currentMonth);
+      renderTodoList();
+    }
+
+    function undoComplete(index) {
+      todos[index].completed = null;
+      save();
+      renderCalendar(currentYear, currentMonth);
+      renderTodoList();
+    }
+
+    function deleteTodo(index) {
+      todos.splice(index, 1);
+      save();
+      renderCalendar(currentYear, currentMonth);
+      renderTodoList();
+    }
+
+    function renderTodoList() {
+      const list = document.getElementById("todoList");
+      list.innerHTML = "";
+      todos.filter(todo => todo.date === selectedDate).forEach((todo, i) => {
+        const realIndex = todos.findIndex(t => t === todo);
+        const color = todo.priority === 'high' ? '#e74c3c' : todo.priority === 'medium' ? '#e67e22' : '#2ecc71';
+        const li = document.createElement("li");
+        li.innerHTML = (todo.completed
+          ? `<button onclick="undoComplete(${realIndex})">↩</button>
+             <button onclick="deleteTodo(${realIndex})">🗑</button>
+             <s style="color:${color}">${todo.task} → ${todo.completed}</s>`
+          : `<button onclick="completeTodo(${realIndex})">✅</button>
+             <button onclick="deleteTodo(${realIndex})">🗑</button>
+             <button onclick="nextDayTodo(${realIndex})">➡</button>
+             <span style="color:${color}">${todo.task}</span>`);
+        list.appendChild(li);
+      });
+    }
+
+    selectedDate = todayStr;
+    renderCalendar(currentYear, currentMonth);
+    showTodoSection(todayStr, `cell-${todayStr}`);
+  </script>
+</body>
+</html>
